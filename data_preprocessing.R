@@ -44,3 +44,49 @@ calculate_gc_content <- function(fastq) {
   gc_content <- letterFrequency(sread(fastq), letters = "GC", as.prob = TRUE)
   return(gc_content)
 }
+
+fastq_to_dataframe <- function(fastq) {
+  df <- data.frame(
+    read_id = id(fastq),
+    sequence = as.character(sread(fastq)),
+    quality = as.character(quality(fastq)),
+    gc_content = calculate_gc_content(fastq)
+  )
+  return(df)
+}
+
+preprocess_ngs_data <- function(input_file, output_file, adapter_seq = NULL, quality_threshold = 20, min_length = 50) {
+  # Load FASTQ file
+  raw_fastq <- load_fastq(input_file)
+  
+  # Perform quality check
+  quality_stats <- quality_check(raw_fastq)
+  
+  # Trim low-quality bases
+  trimmed_fastq <- trim_reads(raw_fastq, quality_threshold, min_length)
+  
+  # Remove adapters if provided
+  if (!is.null(adapter_seq)) {
+    cleaned_fastq <- remove_adapters(trimmed_fastq, adapter_seq)
+  } else {
+    cleaned_fastq <- trimmed_fastq
+  }
+  
+  # Convert to data frame
+  processed_data <- fastq_to_dataframe(cleaned_fastq)
+  
+  # Save processed data
+  write.csv(processed_data, output_file, row.names = FALSE)
+  
+  return(processed_data)
+}
+
+# Example usage
+if (interactive()) {
+  input_file <- "data/raw/sample_ngs_data.fastq"
+  output_file <- "data/processed/processed_ngs_data.csv"
+  adapter_seq <- "AGATCGGAAGAGC"  # Example adapter sequence
+  
+  processed_data <- preprocess_ngs_data(input_file, output_file, adapter_seq)
+  print(head(processed_data))
+}
