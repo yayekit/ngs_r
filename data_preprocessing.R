@@ -1,60 +1,76 @@
 library(Biostrings)
 library(ShortRead)
-#library(dplyr)
+library(dplyr)
 library(tidyr)
 library(ggplot2)
+library(tibble)
 
+# Load a FASTQ file
 load_fastq <- function(file_path) {
   fastq <- readFastq(file_path)
   return(fastq)
 }
 
-quality_check <- function(fastq) {
-  qual <- quality(fastq)
-  qual_stats <- as(qual, "matrix") %>%
-    as.data.frame() %>%
-    rownames_to_column("Position") %>%
-    gather(key = "Statistic", value = "Value", -Position) %>%
-    mutate(Position = as.numeric(Position))
+# Perform quality check and plot quality scores
+quality_check <- function(fastq, output_plot = "results/figures/quality_scores_plot.png") {
+  qual <- as(quality(fastq), "matrix")
+  qual_df <- as.data.frame(qual)
   
-  ggplot(qual_stats, aes(x = Position, y = Value, color = Statistic)) +
-    geom_line() +
+  qual_stats <- qual_df %>%
+    rowid_to_column("Position") %>%
+    pivot_longer(-Position, names_to = "Read", values_to = "Quality") %>%
+    group_by(Position) %>%
+    summarise(
+      Mean_Quality = mean(Quality),
+      Median_Quality = median(Quality),
+      Q1 = quantile(Quality, 0.25),
+      Q3 = quantile(Quality, 0.75)
+    )
+  
+  p <- ggplot(qual_stats, aes(x = Position, y = Mean_Quality)) +
+    geom_line(color = "blue") +
+    geom_ribbon(aes(ymin = Q1, ymax = Q3), fill = "grey80", alpha = 0.5) +
     theme_minimal() +
     labs(title = "Quality Scores Across All Bases",
          x = "Position in read (bp)",
          y = "Quality Score")
   
-  ggsave("results/figures/quality_scores_plot.png")
+  ggsave(output_plot, plot = p)
   
   return(qual_stats)
 }
 
+# Trim low-quality bases from reads
 trim_reads <- function(fastq, quality_threshold = 20, min_length = 50) {
-  trimmed <- trimTails(fastq, k = quality_threshold, a = "mean")
+  trimmed <- trimTailw(fastq, k = 2, a = quality_threshold, halfwidth = 2)
   trimmed <- trimmed[width(trimmed) >= min_length]
   return(trimmed)
 }
 
+# Remove adapter sequences from reads
 remove_adapters <- function(fastq, adapter_seq) {
-  cleaned <- trimLRPatterns(Rpattern = DNAString(adapter_seq), subject = fastq)
-  return(cleaned)
+  cleaned_seq <- trimLRPatterns(Rpattern = DNAString(adapter_seq), subject = sread(fastq))
+  cleaned_fastq <- ShortReadQ(sread = cleaned_seq, quality = quality(fastq), id = id(fastq))
+  return(cleaned_fastq)
 }
-t
+
+# Calculate GC content for each read
 calculate_gc_content <- function(fastq) {
-  gc_content <- letterFrequency(sread(fastq), letters = "GC", as.prob = TRUE)
+  gc_content <- rowSums(letterFrequency(sread(fastq), letters = c("G", "C"))) / width(fastq)
   return(gc_content)
 }
 
+# Convert FastQ object to data frame
 fastq_to_dataframe <- function(fastq) {
   df <- data.frame(
-    read_id = id(fastq),
+    read_id = as.character(id(fastq)),
     sequence = as.character(sread(fastq)),
-    quality = as.character(quality(fastq)),
     gc_content = calculate_gc_content(fastq)
   )
   return(df)
 }
 
+# Main preprocessing function
 preprocess_ngs_data <- function(input_file, output_file, adapter_seq = NULL, quality_threshold = 20, min_length = 50) {
   # Load FASTQ file
   raw_fastq <- load_fastq(input_file)
