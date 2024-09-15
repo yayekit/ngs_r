@@ -20,3 +20,32 @@ calculate_complexity <- function(sequences) {
   })
   return(complexity)
 }
+
+calculate_complexity <- function(sequences) {
+  complexity <- sapply(sequences, function(seq) {
+    unique_chars <- length(unique(strsplit(seq, "")[[1]]))
+    return(unique_chars / nchar(seq))
+  })
+  return(complexity)
+}
+
+calculate_dna_shape <- function(sequences) {
+  dna_shape <- sapply(sequences, function(seq) {
+    shape <- pred_DNA_shape(seq)
+    return(c(
+      mean_MGW = mean(shape$MGW),
+      mean_Prot = mean(shape$Prot),
+      mean_Roll = mean(shape$Roll),
+      mean_HelT = mean(shape$HelT)
+    ))    
+  })
+  return(dna_shape)
+}
+
+calculate_gc_skew <- function(sequences) {
+  gc_skew <- sapply(sequences, function(seq) {
+    bases <- oligonucleotideFrequency(DNAString(seq), width = 1)
+    return((bases["G"] - bases["C"]) / (bases["G"] + bases["C"]))
+  })
+  return(gc_skew)
+}
