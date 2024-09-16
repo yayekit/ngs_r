@@ -59,3 +59,10 @@ calculate_entropy <- function(sequences) {
   return(entropy)
 }
 
+calculate_genomic_distances <- function(gr, features) {
+  distances <- lapply(features, function(feat) {
+    dist <- distanceToNearest(gr, feat)
+    return(mcols(dist)$distance)
+  })
+  return(do.call(cbind, distances))
+}
