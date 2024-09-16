@@ -59,3 +59,46 @@ calculate_entropy <- function(sequences) {
   return(entropy)
 }
 
+calculate_genomic_distances <- function(gr, features) {
+  distances <- lapply(features, function(feat) {
+    dist <- distanceToNearest(gr, feat)
+    return(mcols(dist)$distance)
+  })
+  return(do.call(cbind, distances))
+}
+
+# Main feature engineering function
+engineer_features <- function(data, genome = BSgenome.Hsapiens.UCSC.hg38) {
+  # Convert sequences to GRanges object
+  gr <- GRanges(
+    seqnames = data$chromosome,
+    ranges = IRanges(start = data$position, width = nchar(data$sequence)),
+    strand = data$strand
+  )
+  
+  kmer_freq <- calculate_kmer_freq(data$sequence)
+  colnames(kmer_freq) <- paste0("kmer_", colnames(kmer_freq))
+  
+  complexity <- calculate_complexity(data$sequence)
+  
+  dna_shape <- calculate_dna_shape(data$sequence)
+  
+  gc_skew <- calculate_gc_skew(data$sequence)
+  
+  entropy <- calculate_entropy(data$sequence)
+  
+  tss <- promoters(genes(genome))
+  cpg_islands <- cpgIslands(genome)
+  repeat_masker <- rmsk(genome)
+  
+  genomic_distances <- calculate_genomic_distances(gr, 
+                                                   list(TSS = tss, 
+                                                        CpG_Islands = cpg_islands, 
+                                                        Repeats = repeat_masker))
+  colnames(genomic_distances) <- c("dist_to_TSS", "dist_to_CpG", "dist_to_repeat")
+  
+  # Combine all features
+  features <- cbind(data, kmer_freq, complexity, dna_shape, gc_skew, entropy, genomic_distances)
+  
+  return(features)
+}
