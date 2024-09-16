@@ -37,7 +37,7 @@ calculate_dna_shape <- function(sequences) {
       mean_Prot = mean(shape$Prot),
       mean_Roll = mean(shape$Roll),
       mean_HelT = mean(shape$HelT)
-    ))    
+    ))
   })
   return(dna_shape)
 }
@@ -49,3 +49,13 @@ calculate_gc_skew <- function(sequences) {
   })
   return(gc_skew)
 }
+
+calculate_entropy <- function(sequences) {
+  entropy <- sapply(sequences, function(seq) {
+    bases <- oligonucleotideFrequency(DNAString(seq), width = 1)
+    props <- bases / sum(bases)
+    return(-sum(props * log2(props), na.rm = TRUE))
+  })
+  return(entropy)
+}
+
