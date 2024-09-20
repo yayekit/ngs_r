@@ -48,5 +48,35 @@ train_xgboost_model <- function(data, target_column, params = list(), nrounds = 
   model$feature_names <- feature_names
   
   return(model)
+# xgboost model training goes here
+
+# function to perform cross-validation should go here
+
+  cv_results <- xgb.cv(
+    params = final_params,
+    data = dtrain,
+    nrounds = nrounds,
+    nfold = nfold,
+    early_stopping_rounds = 10,
+    verbose = 1
+  )
+  
+  return(cv_results)
 }
 
+if (interactive()) {
+  featured_data <- read.csv("data/processed/featured_ngs_data.csv")
+  
+  # Assume 'target' is the column name for our prediction target
+  target_column <- "target"
+  
+  # Train model
+  model <- train_xgboost_model(featured_data, target_column)
+  
+  # Perform cross-validation
+  cv_results <- cross_validate_xgboost(featured_data, target_column)
+  
+  # Print results
+  print(model)
+  print(cv_results)
+}
