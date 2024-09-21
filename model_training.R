@@ -48,9 +48,29 @@ train_xgboost_model <- function(data, target_column, params = list(), nrounds = 
   model$feature_names <- feature_names
   
   return(model)
-# xgboost model training goes here
+}
 
-# function to perform cross-validation should go here
+# cross validation function
+cross_validate_xgboost <- function(data, target_column, params = list(),
+                                     nrounds = 100, nfold = 5,
+                                     early_stopping_rounds = 10, verbose = 1) {
+    # Prepare the data for XGBoost using the existing data preparation function
+    prepared_data <- prepare_data_for_xgboost(data, target_column)
+    dtrain <- prepared_data$dtrain
+    
+    # Define default parameters for the XGBoost model
+    default_params <- list(
+      objective = "binary:logistic",
+      eval_metric = "auc",
+      eta = 0.1,
+      max_depth = 6,
+      subsample = 0.8,
+      colsample_bytree = 0.8
+    )
+    
+    # Merge default parameters with any user-provided parameters
+    final_params <- modifyList(default_params, params)
+
 
   cv_results <- xgb.cv(
     params = final_params,
