@@ -55,10 +55,69 @@ custom_css <- "
 "
 
 # Define UI
-ui <- dashboardPage(
-  dashboardHeader(title = "NGS Data Analysis"),
-  dashboardSidebar(),
-  dashboardBody()
-)
-
+ui <- dashboardPagePlus(
+  skin = "blue",
+  header = dashboardHeaderPlus(
+    title = "NGS Data Analysis",
+    enable_right = TRUE
+  ),
+  sidebar = dashboardSidebar(
+    sidebarMenu(
+      menuItem("Data Upload", tabName = "upload", icon = icon("upload")),
+      menuItem("Preprocessing", tabName = "preprocess", icon = icon("cogs")),
+      menuItem("Feature Engineering", tabName = "features", icon = icon("chart-bar")),
+      menuItem("Model Training", tabName = "train", icon = icon("robot")),
+      menuItem("Model Evaluation", tabName = "evaluate", icon = icon("check-line"))
+    )
+  ),
+  body = dashboardBody(
+    useShinyalert(), # for error handling
+    tabItems(
+      tabItem("upload",
+        fileInput("fastq_file", "Choose FASTQ File", accept = c(".fastq", ".fastq.gz")),
+        actionButton("upload_data", "Upload Data")
+      ),
+      tabItem("preprocess",
+        h2("Data Preprocessing"),
+        box(
+          title = "Read Quality Control",
+          status = "primary",
+          solidHeader = TRUE,
+          collapsible = TRUE,
+          plotOutput("quality_plot")
+        ),
+        box(
+          title = "Adapter Trimming",
+          status = "primary",
+          solidHeader = TRUE,
+          collapsible = TRUE,
+          plotOutput("adapter_trimming_plot")
+        ),
+        box(
+          title = "Sequence Length Analysis",
+          status = "primary",
+          solidHeader = TRUE,
+          collapsible = TRUE,
+          plotOutput("length_plot")
+        )
+      ),
+      tabItem("features",
+        h2("Feature Engineering"),
+        box(
+          title = "K-mer Analysis",
+          status = "primary",
+          solidHeader = TRUE,
+          collapsible = TRUE,
+          plotOutput("kmer_plot")
+        ),
+        box(
+          title = "GC Content Analysis",  
+          status = "primary",
+          solidHeader = TRUE,
+          collapsible = TRUE,
+          plotOutput("gc_content_plot")
+        )
+      ),
+      tabItem("train",
+        h2("Model Training"),
 
