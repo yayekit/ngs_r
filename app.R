@@ -1,73 +1,63 @@
 library(shiny)
 library(shinydashboard)
+library(shinydashboardPlus)
+library(shinyWidgets)
 library(DT)
 library(ggplot2)
 library(xgboost)
 library(Biostrings)
 library(GenomicRanges)
 library(pROC)
+library(plotly)
 
-# Source our existing scripts
-source("data_preprocessing.R")
-source("feature_engineering.R")
-source("model_training.R")
-source("model_evaluation.R")
+# sourcing the scripts
+source("src/data_preprocessing.R")
+source("src/feature_engineering.R")
+source("src/model_training.R")
+source("src/model_evaluation.R")
 
-# ... [Previous UI code remains the same] ...
+# custom css for the app
+custom_css <- "
+  .content-wrapper, .right-side {
+    background-color: #f4f6f9;
+  }
+  .box {
+    box-shadow: 0 1px 3px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.24);
+    transition: all 0.3s cubic-bezier(.25,.8,.25,1);
+  }
+  .box:hover {
+    box-shadow: 0 14px 28px rgba(0,0,0,0.25), 0 10px 10px rgba(0,0,0,0.22);
+  }
+  .custom-file-input::-webkit-file-upload-button {
+    visibility: hidden;
+  }
+  .custom-file-input::before {
+    content: 'Select FASTQ file';
+    display: inline-block;
+    background: linear-gradient(top, #f9f9f9, #e3e3e3);
+    border: 1px solid #999;
+    border-radius: 3px;
+    padding: 5px 8px;
+    outline: none;
+    white-space: nowrap;
+    -webkit-user-select: none;
+    cursor: pointer;
+    text-shadow: 1px 1px #fff;
+    font-weight: 700;
+    font-size: 10pt;
+  }
+  .custom-file-input:hover::before {
+    border-color: black;
+  }
+  .custom-file-input:active::before {
+    background: -webkit-linear-gradient(top, #e3e3e3, #f9f9f9);
+  }
+"
 
-# Server
-server <- function(input, output, session) {
-  
-  # Reactive values to store processed data and model
-  values <- reactiveValues(
-    raw_data = NULL,
-    preprocessed_data = NULL,
-    featured_data = NULL,
-    model = NULL,
-    evaluation = NULL
-  )
-  
-  # ... [Previous server code remains the same up to Model Training] ...
-  
-  # Model Training
-  observeEvent(input$train_btn, {
-    req(values$featured_data)
-    train_data <- values$featured_data[1:round(nrow(values$featured_data) * input$train_ratio), ]
-    values$model <- train_xgboost_model(train_data, target_column = "target")
-  })
-  
-  output$train_summary <- renderPrint({
-    req(values$model)
-    print(values$model)
-  })
-  
-  # Model Evaluation
-  observe({
-    req(values$model, values$featured_data)
-    test_data <- values$featured_data[(round(nrow(values$featured_data) * input$train_ratio) + 1):nrow(values$featured_data), ]
-    values$evaluation <- evaluate_model(values$model, test_data, target_column = "target")
-  })
-  
-  output$eval_summary <- renderPrint({
-    req(values$evaluation)
-    print(values$evaluation$confusion_matrix)
-    cat("\nAUC:", values$evaluation$auc)
-    cat("\nAccuracy:", values$evaluation$accuracy)
-    cat("\nPrecision:", values$evaluation$precision)
-    cat("\nRecall:", values$evaluation$recall)
-    cat("\nF1 Score:", values$evaluation$f1_score)
-  })
-  
-  output$roc_plot <- renderPlot({
-    req(values$evaluation)
-    plot_roc_curve(values$evaluation$roc_curve)
-  })
-  
-  output$feature_importance_plot <- renderPlot({
-    req(values$model)
-    plot_feature_importance(values$model)
-  })
-}
+# Define UI
+ui <- dashboardPage(
+  dashboardHeader(title = "NGS Data Analysis"),
+  dashboardSidebar(),
+  dashboardBody()
+)
 
-# Run the app
-shinyApp(ui = ui, server = server)
