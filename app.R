@@ -54,12 +54,9 @@ custom_css <- "
   }
 "
 
-# Define UI
 ui <- dashboardPagePlus(
-  skin = "blue",
   header = dashboardHeaderPlus(
-    title = "NGS Data Analysis",
-    enable_right = TRUE
+    title = "NGS Data Analysis"
   ),
   sidebar = dashboardSidebar(
     sidebarMenu(
@@ -67,57 +64,177 @@ ui <- dashboardPagePlus(
       menuItem("Preprocessing", tabName = "preprocess", icon = icon("cogs")),
       menuItem("Feature Engineering", tabName = "features", icon = icon("chart-bar")),
       menuItem("Model Training", tabName = "train", icon = icon("robot")),
-      menuItem("Model Evaluation", tabName = "evaluate", icon = icon("check-line"))
+      menuItem("Model Evaluation", tabName = "evaluate", icon = icon("chart-line"))
     )
   ),
   body = dashboardBody(
-    useShinyalert(), # for error handling
+    tags$head(tags$style(HTML(custom_css))),
     tabItems(
-      tabItem("upload",
-        fileInput("fastq_file", "Choose FASTQ File", accept = c(".fastq", ".fastq.gz")),
-        actionButton("upload_data", "Upload Data")
+      # Data Upload tab
+      tabItem(tabName = "upload",
+              fluidRow(
+                box(
+                  title = "Upload FASTQ File", status = "primary", solidHeader = TRUE,
+                  fileInput("file", "Choose FASTQ File", accept = c(".fastq", ".fq"), 
+                            class = "custom-file-input"),
+                  actionBttn("upload_btn", "Upload and Process", 
+                             style = "gradient", color = "primary")
+                )
+              )
       ),
-      tabItem("preprocess",
-        h2("Data Preprocessing"),
-        box(
-          title = "Read Quality Control",
-          status = "primary",
-          solidHeader = TRUE,
-          collapsible = TRUE,
-          plotOutput("quality_plot")
-        ),
-        box(
-          title = "Adapter Trimming",
-          status = "primary",
-          solidHeader = TRUE,
-          collapsible = TRUE,
-          plotOutput("adapter_trimming_plot")
-        ),
-        box(
-          title = "Sequence Length Analysis",
-          status = "primary",
-          solidHeader = TRUE,
-          collapsible = TRUE,
-          plotOutput("length_plot")
-        )
+      
+      # Preprocessing tab
+      tabItem(tabName = "preprocess",
+              fluidRow(
+                box(
+                  title = "Data Preprocessing Summary", status = "info", solidHeader = TRUE,
+                  verbatimTextOutput("preprocess_summary")
+                ),
+                box(
+                  title = "Quality Plot", status = "info", solidHeader = TRUE,
+                  plotlyOutput("quality_plot")
+                )
+              )
       ),
-      tabItem("features",
-        h2("Feature Engineering"),
-        box(
-          title = "K-mer Analysis",
-          status = "primary",
-          solidHeader = TRUE,
-          collapsible = TRUE,
-          plotOutput("kmer_plot")
-        ),
-        box(
-          title = "GC Content Analysis",  
-          status = "primary",
-          solidHeader = TRUE,
-          collapsible = TRUE,
-          plotOutput("gc_content_plot")
-        )
+      
+      # Feature Engineering tab
+      tabItem(tabName = "features",
+              fluidRow(
+                box(
+                  title = "Featured Data", status = "success", solidHeader = TRUE, width = 12,
+                  DTOutput("feature_table")
+                )
+              ),
+              fluidRow(
+                box(
+                  downloadBttn("download_features", "Download Featured Data", 
+                               style = "gradient", color = "success")
+                )
+              )
       ),
-      tabItem("train",
-        h2("Model Training"),
+      
+      # Model Training tab
+      tabItem(tabName = "train",
+              fluidRow(
+                box(
+                  title = "Model Training", status = "warning", solidHeader = TRUE,
+                  sliderInput("train_ratio", "Training Data Ratio:", 
+                              min = 0.5, max = 0.9, value = 0.8, step = 0.1),
+                  actionBttn("train_btn", "Train Model", 
+                             style = "gradient", color = "warning")
+                ),
+                box(
+                  title = "Training Summary", status = "warning", solidHeader = TRUE,
+                  verbatimTextOutput("train_summary")
+                )
+              )
+      ),
+      
+      # Model Evaluation tab
+      tabItem(tabName = "evaluate",
+              fluidRow(
+                box(
+                  title = "Evaluation Metrics", status = "danger", solidHeader = TRUE,
+                  verbatimTextOutput("eval_summary")
+                ),
+                box(
+                  title = "ROC Curve", status = "danger", solidHeader = TRUE,
+                  plotlyOutput("roc_plot")
+                )
+              ),
+              fluidRow(
+                box(
+                  title = "Feature Importance", status = "danger", solidHeader = TRUE, width = 12,
+                  plotlyOutput("feature_importance_plot")
+                )
+              )
+      )
+    )
+  )
+)
 
+
+server <- function(input, output, session) {
+  
+  # Reactive values to store processed data and model
+  values <- reactiveValues(
+    raw_data = NULL,
+    preprocessed_data = NULL,
+    featured_data = NULL,
+    model = NULL,
+    evaluation = NULL
+  )
+  
+  # Data Upload
+  observeEvent(input$upload_btn, {
+    req(input$file)
+    values$raw_data <- load_fastq(input$file$datapath)
+    values$preprocessed_data <- preprocess_ngs_data(values$raw_data)
+  })
+  
+  # Preprocessing
+  output$preprocess_summary <- renderPrint({
+    req(values$preprocessed_data)
+    summary(values$preprocessed_data)
+  })
+  
+  output$quality_plot <- renderPlotly({
+    req(values$preprocessed_data)
+    p <- quality_check(values$preprocessed_data)
+    ggplotly(p)
+  })
+  
+  # Feature Engineering
+  observe({
+    req(values$preprocessed_data)
+    values$featured_data <- engineer_features(values$preprocessed_data)
+  })
+  
+  output$feature_table <- renderDT({
+    req(values$featured_data)
+    datatable(values$featured_data, options = list(scrollX = TRUE, pageLength = 10))
+  })
+  
+  output$download_features <- downloadHandler(
+    filename = function() {
+      paste("featured_data_", Sys.Date(), ".csv", sep = "")
+    },
+    content = function(file) {
+      write.csv(values$featured_data, file, row.names = FALSE)
+    }
+  )
+  
+  # Model Training
+  observeEvent(input$train_btn, {
+    req(values$featured_data)
+    train_data <- values$featured_data[1:round(nrow(values$featured_data) * input$train_ratio), ]
+    values$model <- train_xgboost_model(train_data, target_column = "target")
+  })
+  
+  output$train_summary <- renderPrint({
+    req(values$model)
+    print(values$model)
+  })
+  
+  # Model Evaluation
+  observe({
+    req(values$model, values$featured_data)
+    test_data <- values$featured_data[(round(nrow(values$featured_data) * input$train_ratio) + 1):nrow(values$featured_data), ]
+    values$evaluation <- evaluate_model(values$model, test_data, target_column = "target")
+  })
+  
+  output$eval_summary <- renderPrint({
+    req(values$evaluation)
+    print(values$evaluation$confusion_matrix)
+    cat("\nAUC:", values$evaluation$auc)
+    cat("\nAccuracy:", values$evaluation$accuracy)
+    cat("\nPrecision:", values$evaluation$precision)
+    cat("\nRecall:", values$evaluation$recall)
+    cat("\nF1 Score:", values$evaluation$f1_score)
+  })
+  
+  output$roc_plot <- renderPlotly({
+    req(values$evaluation)
+    p <- plot_roc_curve(values$evaluation$roc_curve)
+    ggplotly(p)
+  })
