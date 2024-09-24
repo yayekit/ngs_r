@@ -155,8 +155,6 @@ ui <- dashboardPagePlus(
 
 
 server <- function(input, output, session) {
-  
-  # Reactive values to store processed data and model
   values <- reactiveValues(
     raw_data = NULL,
     preprocessed_data = NULL,
@@ -165,76 +163,33 @@ server <- function(input, output, session) {
     evaluation = NULL
   )
   
-  # Data Upload
+  source("data_handlers.R")
+  source("model_handlers.R")
+  source("ui_handlers.R")
+  
   observeEvent(input$upload_btn, {
-    req(input$file)
-    values$raw_data <- load_fastq(input$file$datapath)
-    values$preprocessed_data <- preprocess_ngs_data(values$raw_data)
+    values$raw_data <- load_and_preprocess_data(input$file$datapath)
   })
   
-  # Preprocessing
-  output$preprocess_summary <- renderPrint({
-    req(values$preprocessed_data)
-    summary(values$preprocessed_data)
-  })
-  
-  output$quality_plot <- renderPlotly({
-    req(values$preprocessed_data)
-    p <- quality_check(values$preprocessed_data)
-    ggplotly(p)
-  })
-  
-  # Feature Engineering
   observe({
     req(values$preprocessed_data)
     values$featured_data <- engineer_features(values$preprocessed_data)
   })
   
-  output$feature_table <- renderDT({
-    req(values$featured_data)
-    datatable(values$featured_data, options = list(scrollX = TRUE, pageLength = 10))
-  })
-  
-  output$download_features <- downloadHandler(
-    filename = function() {
-      paste("featured_data_", Sys.Date(), ".csv", sep = "")
-    },
-    content = function(file) {
-      write.csv(values$featured_data, file, row.names = FALSE)
-    }
-  )
-  
-  # Model Training
   observeEvent(input$train_btn, {
     req(values$featured_data)
-    train_data <- values$featured_data[1:round(nrow(values$featured_data) * input$train_ratio), ]
-    values$model <- train_xgboost_model(train_data, target_column = "target")
+    values$model <- train_model(values$featured_data, input$train_ratio)
   })
   
-  output$train_summary <- renderPrint({
-    req(values$model)
-    print(values$model)
-  })
-  
-  # Model Evaluation
   observe({
     req(values$model, values$featured_data)
-    test_data <- values$featured_data[(round(nrow(values$featured_data) * input$train_ratio) + 1):nrow(values$featured_data), ]
-    values$evaluation <- evaluate_model(values$model, test_data, target_column = "target")
+    values$evaluation <- evaluate_model(values$model, values$featured_data, input$train_ratio)
   })
   
-  output$eval_summary <- renderPrint({
-    req(values$evaluation)
-    print(values$evaluation$confusion_matrix)
-    cat("\nAUC:", values$evaluation$auc)
-    cat("\nAccuracy:", values$evaluation$accuracy)
-    cat("\nPrecision:", values$evaluation$precision)
-    cat("\nRecall:", values$evaluation$recall)
-    cat("\nF1 Score:", values$evaluation$f1_score)
+  observe({
+    update_preprocessing_ui(input, output, values)
+    update_feature_engineering_ui(input, output, values)
+    update_model_training_ui(input, output, values)
+    update_model_evaluation_ui(input, output, values)
   })
-  
-  output$roc_plot <- renderPlotly({
-    req(values$evaluation)
-    p <- plot_roc_curve(values$evaluation$roc_curve)
-    ggplotly(p)
-  })
+}
