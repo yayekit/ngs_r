@@ -1,5 +1,6 @@
 library(xgboost)
 library(caret)
+
 # notes for myself
 # preparing data for xgboost
 prepare_data_for_xgboost <- function(data, target_column) {
@@ -16,7 +17,10 @@ prepare_data_for_xgboost <- function(data, target_column) {
 }
 
 # main function for xgboost model training
-train_xgboost_model <- function(data, target_column, params = list(), nrounds = 100) {
+train_xgboost_model <- function(data, 
+                                target_column, 
+                                params = list(), 
+                                nrounds = 100) {
 
   prepared_data <- prepare_data_for_xgboost(data, target_column)
   dtrain <- prepared_data$dtrain

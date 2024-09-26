@@ -57,7 +57,7 @@ plot_roc_curve <- function(roc_obj) {
 # Function to plot feature importance
 plot_feature_importance <- function(model, top_n = 20) {
   importance_matrix <- xgb.importance(model = model)
-  xgb.plot.importance(importance_matrix[1:min(nrow(importance_matrix), top_n),])
+  xgb.plot.importance(importance_matrix[seq_len(min(nrow(importance_matrix), top_n)),])
 }
 
 # Example usage

@@ -69,3 +69,5 @@ update_model_evaluation_ui <- function(input, output, values) {
     ggplotly(p)
   })
 }
+
+shinyApp(ui = ui, server = server)
