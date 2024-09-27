@@ -15,6 +15,7 @@ source("src/data_preprocessing.R")
 source("src/feature_engineering.R")
 source("src/model_training.R")
 source("src/model_evaluation.R")
+source("src/sql_processing.R")
 
 # custom css for the app
 custom_css <- "
@@ -160,7 +161,8 @@ server <- function(input, output, session) {
     preprocessed_data = NULL,
     featured_data = NULL,
     model = NULL,
-    evaluation = NULL
+    evaluation = NULL,
+    db_connection = NULL
   )
   
   source("data_handlers.R")
@@ -191,5 +193,36 @@ server <- function(input, output, session) {
     update_feature_engineering_ui(input, output, values)
     update_model_training_ui(input, output, values)
     update_model_evaluation_ui(input, output, values)
+  })
+  
+  # Initialize database connection
+  observe({
+    values$db_connection <- create_db_connection("ngs_data.sqlite")
+    create_tables(values$db_connection)
+  })
+  
+  # Insert raw data into database
+  observe({
+    req(values$raw_data)
+    insert_raw_data(values$db_connection, values$raw_data)
+  })
+  
+  # Insert processed data into database
+  observe({
+    req(values$preprocessed_data)
+    insert_processed_data(values$db_connection, values$preprocessed_data)
+  })
+  
+  # Insert featured data into database
+  observe({
+    req(values$featured_data)
+    insert_featured_data(values$db_connection, values$featured_data)
+  })
+  
+  # Close database connection when the session ends
+  session$onSessionEnded(function() {
+    if (!is.null(values$db_connection)) {
+      close_db_connection(values$db_connection)
+    }
   })
 }
