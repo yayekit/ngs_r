@@ -1,6 +1,9 @@
 library(plotly)
 library(DT)
+library(ggplot2)
+library(xgboost)
 
+# Preprocessing UI update
 update_preprocessing_ui <- function(input, output, values) {
   output$preprocess_summary <- renderPrint({
     req(values$preprocessed_data)
@@ -14,6 +17,7 @@ update_preprocessing_ui <- function(input, output, values) {
   })
 }
 
+# Feature engineering UI update
 update_feature_engineering_ui <- function(input, output, values) {
   output$feature_table <- renderDT({
     req(values$featured_data)
@@ -30,6 +34,7 @@ update_feature_engineering_ui <- function(input, output, values) {
   )
 }
 
+# Model training UI update
 update_model_training_ui <- function(input, output, values) {
   output$train_summary <- renderPrint({
     req(values$model)
@@ -37,37 +42,55 @@ update_model_training_ui <- function(input, output, values) {
   })
 }
 
+# Model evaluation UI update
 update_model_evaluation_ui <- function(input, output, values) {
+  # Evaluation summary
   output$eval_summary <- renderPrint({
     req(values$evaluation)
-    print(values$evaluation$confusion_matrix)
-    cat("\nAUC:", values$evaluation$auc)
-    cat("\nAccuracy:", values$evaluation$accuracy)
-    cat("\nPrecision:", values$evaluation$precision)
-    cat("\nRecall:", values$evaluation$recall)
-    cat("\nF1 Score:", values$evaluation$f1_score)
+    print_evaluation_summary(values$evaluation)
   })
   
+  # ROC plot
   output$roc_plot <- renderPlotly({
     req(values$evaluation)
-    plot_data <- data.frame(
-      FPR = values$evaluation$roc_curve$specificities,
-      TPR = values$evaluation$roc_curve$sensitivities
-    )
-    p <- ggplot(plot_data, aes(x = FPR, y = TPR)) +
-      geom_line() +
-      geom_abline(intercept = 0, slope = 1, linetype = "dashed", color = "gray") +
-      labs(title = "ROC Curve", x = "False Positive Rate", y = "True Positive Rate") +
-      theme_minimal()
-    ggplotly(p)
+    plot_roc_curve(values$evaluation$roc_curve)
   })
   
+  # Feature importance plot
   output$feature_importance_plot <- renderPlotly({
     req(values$model)
-    importance_matrix <- xgb.importance(model = values$model)
-    p <- xgb.plot.importance(importance_matrix[1:min(nrow(importance_matrix), 20),])
-    ggplotly(p)
+    plot_feature_importance(values$model)
   })
 }
 
-shinyApp(ui = ui, server = server)
+# Helper functions
+print_evaluation_summary <- function(evaluation) {
+  print(evaluation$confusion_matrix)
+  cat("\nAUC:", evaluation$auc)
+  cat("\nAccuracy:", evaluation$accuracy)
+  cat("\nPrecision:", evaluation$precision)
+  cat("\nRecall:", evaluation$recall)
+  cat("\nF1 Score:", evaluation$f1_score)
+}
+
+plot_roc_curve <- function(roc_curve) {
+  plot_data <- data.frame(
+    FPR = roc_curve$specificities,
+    TPR = roc_curve$sensitivities
+  )
+  p <- ggplot(plot_data, aes(x = FPR, y = TPR)) +
+    geom_line() +
+    geom_abline(intercept = 0, slope = 1, linetype = "dashed", color = "gray") +
+    labs(title = "ROC Curve", x = "False Positive Rate", y = "True Positive Rate") +
+    theme_minimal()
+  ggplotly(p)
+}
+
+plot_feature_importance <- function(model) {
+  importance_matrix <- xgb.importance(model = model)
+  p <- xgb.plot.importance(importance_matrix[seq_len(min(nrow(importance_matrix), 20)),])
+  ggplotly(p)
+}
+
+# Remove this line as it should be in a separate app.R file
+# shinyApp(ui = ui, server = server)
