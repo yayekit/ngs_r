@@ -1,6 +1,7 @@
 library(xgboost)
 library(pROC)
 library(caret)
+library(ggplot2)
 
 # Function to make predictions
 make_predictions <- function(model, data, target_column) {
@@ -48,16 +49,53 @@ evaluate_model <- function(model, data, target_column) {
   ))
 }
 
-# Function to plot ROC curve
+# Function to plot ROC curve using ggplot2
 plot_roc_curve <- function(roc_obj) {
-  plot(roc_obj, main = "ROC Curve")
-  abline(a = 0, b = 1, lty = 2, col = "gray")
+  roc_data <- data.frame(
+    FPR = 1 - roc_obj$specificities,
+    TPR = roc_obj$sensitivities
+  )
+  
+  ggplot(roc_data, aes(x = FPR, y = TPR)) +
+    geom_line() +
+    geom_abline(intercept = 0, slope = 1, linetype = "dashed", color = "gray") +
+    labs(title = "ROC Curve", x = "False Positive Rate", y = "True Positive Rate") +
+    theme_minimal() +
+    annotate("text", x = 0.75, y = 0.25, 
+             label = paste("AUC =", round(auc(roc_obj), 3)))
 }
 
-# Function to plot feature importance
+# Function to plot feature importance using ggplot2
 plot_feature_importance <- function(model, top_n = 20) {
   importance_matrix <- xgb.importance(model = model)
-  xgb.plot.importance(importance_matrix[seq_len(min(nrow(importance_matrix), top_n)),])
+  top_features <- importance_matrix[seq_len(min(nrow(importance_matrix), top_n)),]
+  
+  ggplot(top_features, aes(x = reorder(Feature, Gain), y = Gain)) +
+    geom_bar(stat = "identity") +
+    coord_flip() +
+    labs(title = "Feature Importance", x = "Features", y = "Gain") +
+    theme_minimal()
+}
+
+# Function to save evaluation results and plots
+save_evaluation_results <- function(eval_results, roc_plot, importance_plot, output_dir) {
+  # Create output directory if it doesn't exist
+  dir.create(output_dir, showWarnings = FALSE, recursive = TRUE)
+  
+  # Save evaluation metrics
+  write.csv(data.frame(
+    Metric = c("AUC", "Accuracy", "Precision", "Recall", "F1 Score"),
+    Value = c(eval_results$auc, eval_results$accuracy, eval_results$precision, 
+              eval_results$recall, eval_results$f1_score)
+  ), file = file.path(output_dir, "evaluation_metrics.csv"), row.names = FALSE)
+  
+  # Save confusion matrix
+  write.csv(as.data.frame(eval_results$confusion_matrix$table), 
+            file = file.path(output_dir, "confusion_matrix.csv"))
+  
+  # Save plots
+  ggsave(file.path(output_dir, "roc_curve.png"), plot = roc_plot, width = 8, height = 6)
+  ggsave(file.path(output_dir, "feature_importance.png"), plot = importance_plot, width = 10, height = 8)
 }
 
 # Example usage
@@ -80,9 +118,14 @@ if (interactive()) {
   cat("\nRecall:", eval_results$recall)
   cat("\nF1 Score:", eval_results$f1_score)
   
-  # Plot ROC curve
-  plot_roc_curve(eval_results$roc_curve)
+  # Create plots
+  roc_plot <- plot_roc_curve(eval_results$roc_curve)
+  importance_plot <- plot_feature_importance(model)
   
-  # Plot feature importance
-  plot_feature_importance(model)
+  # Display plots
+  print(roc_plot)
+  print(importance_plot)
+  
+  # Save evaluation results and plots
+  save_evaluation_results(eval_results, roc_plot, importance_plot, "results/model_evaluation")
 }
